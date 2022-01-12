@@ -92,7 +92,7 @@ public class Sculkhunt implements ModInitializer {
             }
 
             if (SculkhuntComponents.SCULK.get(newPlayer).isSculk()) {
-                float sculkPercentage = getSculkPlayerPercentage(newPlayer.getServerWorld());
+                float sculkPercentage = getSculkPlayerPercentage(newPlayer.getWorld());
                 float sculkMaxHealth = 12f;
                 if (sculkPercentage >= 0.8f) {
                     sculkMaxHealth = 4f;
