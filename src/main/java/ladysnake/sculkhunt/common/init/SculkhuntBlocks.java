@@ -27,13 +27,19 @@ public class SculkhuntBlocks {
         SCULK_CATALYST = registerBlock(new SculkCatalystBlock(FabricBlockSettings.of(Material.SCULK, MapColor.CYAN).strength(1.5F).sounds(BlockSoundGroup.SCULK_SENSOR).breakByTool(FabricToolTags.HOES).nonOpaque()), "sculk_catalyst", ItemGroup.DECORATIONS);
     }
 
+    private static Item registerItem(Item item, String name) {
+        Registry.register(Registry.ITEM, Sculkhunt.MODID + ":" + name, item);
+
+        return item;
+    }
+
     private static Block registerBlock(Block block, String name, ItemGroup itemGroup) {
         Registry.register(Registry.BLOCK, Sculkhunt.MODID + ":" + name, block);
 
         if (itemGroup != null) {
             BlockItem item = new BlockItem(block, new Item.Settings().group(itemGroup));
             item.appendBlocks(Item.BLOCK_ITEMS, item);
-            SculkhuntItems.registerItem(item, name);
+            registerItem(item, name);
         }
 
         return block;

@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import ladysnake.sculkhunt.cca.SculkhuntComponents;
 import ladysnake.sculkhunt.common.init.SculkhuntBlocks;
 import ladysnake.sculkhunt.common.init.SculkhuntDamageSources;
-import ladysnake.sculkhunt.common.init.SculkhuntDrops;
 import net.minecraft.entity.*;
 import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.damage.DamageSource;
@@ -107,12 +106,6 @@ public abstract class LivingEntityMixin extends Entity {
         if (SculkhuntComponents.SCULK.get(this).isSculk()) {
             this.setInvisible(true);
 
-            if (this.deathTime == 1) {
-                ItemEntity droppedItem = new ItemEntity(world, this.getX(), this.getY(), this.getZ(), SculkhuntDrops.getRandomDrop(random));
-                droppedItem.setVelocity(random.nextGaussian() / 5f, random.nextGaussian() / 5f, random.nextGaussian() / 5f);
-                world.spawnEntity(droppedItem);
-            }
-
             for (int i = 0; i < (this.getWidth() * this.getHeight()) * 100; i++) {
                 world.addParticle(new ItemStackParticleEffect(ParticleTypes.ITEM, new ItemStack(SculkhuntBlocks.SCULK)), this.getX() + random.nextGaussian() * this.getWidth() / 2f, (this.getY() + this.getHeight() / 2f) + random.nextGaussian() * this.getHeight() / 2f, this.getZ() + random.nextGaussian() * this.getWidth() / 2f, random.nextGaussian() / 10f, random.nextFloat() / 10f, random.nextGaussian() / 10f);
             }
@@ -120,21 +113,6 @@ public abstract class LivingEntityMixin extends Entity {
             if (deathTime >= 3) {
                 this.remove(Entity.RemovalReason.KILLED);
             }
-        }
-    }
-
-
-    @Inject(method = "shouldDropLoot", at = @At("RETURN"), cancellable = true)
-    protected void shouldDropLoot(CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
-        if (SculkhuntComponents.SCULK.get(this).isSculk()) {
-            callbackInfoReturnable.setReturnValue(false);
-        }
-    }
-
-    @Inject(method = "shouldDropXp", at = @At("RETURN"), cancellable = true)
-    protected void shouldDropXp(CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
-        if (SculkhuntComponents.SCULK.get(this).isSculk()) {
-            callbackInfoReturnable.setReturnValue(false);
         }
     }
 

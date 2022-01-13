@@ -39,7 +39,6 @@ public class SculkhuntClient implements ClientModInitializer {
 
         EntityModelLayerRegistry.registerModelLayer(SCULK_CATALYST_MODEl_LAYER, SculkCatalystEntityModel::getTexturedModelData);
         net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(SculkhuntEntityTypes.SCULK_CATALYST, SculkCatalystEntityRenderer::new);
-        net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(SculkhuntEntityTypes.SCULK_EYE, FlyingItemEntityRenderer::new);
 
         ParticleFactoryRegistry.getInstance().register(Sculkhunt.SOUND, SoundParticle.DefaultFactory::new);
 

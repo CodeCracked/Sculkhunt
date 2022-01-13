@@ -39,13 +39,13 @@ import net.minecraft.world.World;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static ladysnake.sculkhunt.common.Sculkhunt.SPAWN_RADIUS;
 
 public class SculkCatalystEntity extends Entity {
     private static final TrackedData<Integer> BLOOMING_PHASE = DataTracker.registerData(SculkCatalystEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    private final List<Sculk> veins = Lists.newArrayList();
     private final List<Sculk> sculks = Lists.newArrayList();
     private int bloomCounter = 0;
     private int incapacitatedTimer = 0;
@@ -101,9 +101,22 @@ public class SculkCatalystEntity extends Entity {
         {
             if (vein.get(ConnectingBlock.FACING_PROPERTIES.get(direction)))
             {
+                // Place sculk block
                 BlockPos neighborPos = blockPos.add(direction.getVector());
                 this.sculks.add(new Sculk(neighborPos, world.getBlockState(neighborPos)));
                 world.setBlockState(neighborPos, SculkhuntBlocks.SCULK.getDefaultState());
+
+                // Remove veins
+                for (Direction veinOffset : Direction.values())
+                {
+                    BlockPos veinPos = neighborPos.add(veinOffset.getVector());
+                    BlockState state = world.getBlockState(veinPos);
+                    if (state.getBlock().equals(SculkhuntBlocks.SCULK_VEIN))
+                    {
+                        this.sculks.remove(new Sculk(veinPos, null));
+                        world.setBlockState(veinPos, Blocks.AIR.getDefaultState());
+                    }
+                }
             }
         }
     }
@@ -157,7 +170,6 @@ public class SculkCatalystEntity extends Entity {
                                     {
                                         Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
                                         this.sculks.add(newVein);
-                                        this.veins.add(newVein);
                                         world.setBlockState(placePos, getBlockStateForVein(placePos));
                                     }
                                 }
@@ -168,62 +180,44 @@ public class SculkCatalystEntity extends Entity {
                     // If there is sculk
                     else
                     {
-                        if (!veins.isEmpty())
+                        // Get random sculk belonging to this catalyst
+                        Sculk sculk = this.sculks.get(random.nextInt(this.sculks.size()));
+                        BlockPos blockPos = NbtHelper.toBlockPos(sculk.blockPos);
+                        BlockState sculkState = world.getBlockState(blockPos);
+
+                        // If this sculk is a sculk vein
+                        if (sculkState.getBlock() == SculkhuntBlocks.SCULK_VEIN)
                         {
-                            // Get random vein belonging to this catalyst
-                            Sculk vein = this.veins.get(random.nextInt(this.veins.size()));
-                            BlockPos blockPos = NbtHelper.toBlockPos(vein.blockPos);
-                            BlockState veinState = world.getBlockState(blockPos);
+                            // Add sculk around where the vein used to be, clearing any veins attached to those blocks
+                            spreadVein(blockPos, sculkState);
 
-                            // Make sure it is still a sculk vein
-                            if (veinState.getBlock() == SculkhuntBlocks.SCULK_VEIN)
+                            // 1% chance of placing a sculk sensor where the vein used to be
+                            if (random.nextInt(100) == 0)
                             {
-                                // Remove the vein
-                                this.sculks.remove(vein);
-                                this.veins.remove(vein);
-                                world.setBlockState(blockPos, Blocks.AIR.getDefaultState());
+                                this.sculks.add(new Sculk(blockPos, world.getBlockState(blockPos)));
+                                world.setBlockState(blockPos, Blocks.SCULK_SENSOR.getDefaultState());
+                            }
 
-                                // Add sculk beneath where the vein used to be
-                                spreadVein(blockPos, veinState);
-
-                                // 1% chance of placing a sculk sensor where the vein used to be
-                                if (random.nextInt(100) == 0)
+                            // Place veins wherever possible within a 3x3 lattice centered around where the vein used to be
+                            for (int x = -1; x <= 1; x++)
+                            {
+                                for (int y = -1; y <= 1; y++)
                                 {
-                                    this.sculks.add(new Sculk(blockPos, world.getBlockState(blockPos)));
-                                    world.setBlockState(blockPos, Blocks.SCULK_SENSOR.getDefaultState());
-                                }
-
-                                // Place veins wherever possible within a 3x3 lattice centered around where the vein used to be
-                                for (int x = -1; x <= 1; x++)
-                                {
-                                    for (int y = -1; y <= 1; y++)
+                                    for (int z = -1; z <= 1; z++)
                                     {
-                                        for (int z = -1; z <= 1; z++)
-                                        {
-                                            BlockPos placePos = blockPos.add(x, y, z);
+                                        BlockPos placePos = blockPos.add(x, y, z);
 
-                                            if ((x != 0 ^ y != 0 ^ z != 0) && canPlaceVeinAt(placePos))
-                                            {
-                                                Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
-                                                this.sculks.add(newVein);
-                                                this.veins.add(newVein);
-                                                hasSpread = true;
-                                                world.setBlockState(placePos, getBlockStateForVein(placePos));
-                                            }
+                                        if ((x != 0 ^ y != 0 ^ z != 0) && canPlaceVeinAt(placePos))
+                                        {
+                                            Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
+                                            this.sculks.add(newVein);
+                                            hasSpread = true;
+                                            world.setBlockState(placePos, getBlockStateForVein(placePos));
                                         }
                                     }
                                 }
                             }
-                            // If the vein was broken
-                            else
-                            {
-                                this.veins.remove(vein);
-                            }
                         }
-
-                        // Get random sculk belonging to this catalyst
-                        Sculk sculk = this.sculks.get(random.nextInt(this.sculks.size()));
-                        BlockPos blockPos = NbtHelper.toBlockPos(sculk.blockPos);
 
                         // If this sculk is a sculk block
                         if (world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK)
@@ -363,14 +357,6 @@ public class SculkCatalystEntity extends Entity {
             Sculk sculk = new Sculk(NbtHelper.toBlockPos(nbtCompound.getCompound("BlockPos")), NbtHelper.toBlockState(nbtCompound.getCompound("BlockState")));
             this.sculks.add(sculk);
         }
-
-        this.veins.clear();
-        nbtList = nbt.getList("Veins", 10);
-        for (int i = 0; i < nbtList.size(); ++i) {
-            NbtCompound nbtCompound = nbtList.getCompound(i);
-            Sculk sculk = new Sculk(NbtHelper.toBlockPos(nbtCompound.getCompound("BlockPos")), NbtHelper.toBlockState(nbtCompound.getCompound("BlockState")));
-            this.veins.add(sculk);
-        }
     }
 
     public NbtCompound writeNbt(NbtCompound nbt) {
@@ -378,7 +364,6 @@ public class SculkCatalystEntity extends Entity {
 
         nbt.putInt("BloomCounter", this.bloomCounter);
         nbt.put("Sculks", this.getSculks());
-        nbt.put("Veins", this.getVeins());
 
         return nbt;
     }
@@ -472,7 +457,6 @@ public class SculkCatalystEntity extends Entity {
                         world.breakBlock(blockPos, false);
                         world.setBlockState(blockPos, blockState);
                         this.sculks.remove(this.sculks.size() - 1);
-                        this.veins.remove(sculk);
                     }
                     else if (world.getBlockState(blockPos).getBlock() == Blocks.SCULK_SENSOR)
                     {
@@ -489,7 +473,6 @@ public class SculkCatalystEntity extends Entity {
             }
 
             sculks.addAll(newVeins);
-            veins.addAll(newVeins);
 
             return true;
         } else {
@@ -504,15 +487,6 @@ public class SculkCatalystEntity extends Entity {
             {
                 BlockState blockState = NbtHelper.toBlockState(sculk.blockstate);
                 BlockPos blockPos = NbtHelper.toBlockPos(sculk.blockPos);
-                if (world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK || world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK_VEIN || world.getBlockState(blockPos).getBlock() == Blocks.SCULK_SENSOR) {
-                    world.breakBlock(blockPos, false);
-                    world.setBlockState(blockPos, blockState);
-                }
-            }
-            for (Sculk vein : veins)
-            {
-                BlockState blockState = NbtHelper.toBlockState(vein.blockstate);
-                BlockPos blockPos = NbtHelper.toBlockPos(vein.blockPos);
                 if (world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK || world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK_VEIN || world.getBlockState(blockPos).getBlock() == Blocks.SCULK_SENSOR) {
                     world.breakBlock(blockPos, false);
                     world.setBlockState(blockPos, blockState);
@@ -539,25 +513,28 @@ public class SculkCatalystEntity extends Entity {
         return nbtList;
     }
 
-    public NbtList getVeins() {
-        NbtList nbtList = new NbtList();
-        for (Sculk vein : veins) {
-            NbtCompound nbtCompound = new NbtCompound();
-            nbtCompound.put("BlockPos", vein.blockPos);
-            nbtCompound.put("BlockState", vein.blockstate);
-            nbtList.add(nbtCompound);
-        }
-
-        return nbtList;
-    }
-
     private static class Sculk {
         NbtCompound blockPos;
         NbtCompound blockstate;
 
         Sculk(BlockPos blockPos, BlockState blockState) {
             this.blockPos = NbtHelper.fromBlockPos(blockPos);
-            this.blockstate = NbtHelper.fromBlockState(blockState);
+            if (blockState != null) this.blockstate = NbtHelper.fromBlockState(blockState);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Sculk sculk = (Sculk) o;
+            return blockPos.equals(sculk.blockPos);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(blockPos);
         }
     }
 }

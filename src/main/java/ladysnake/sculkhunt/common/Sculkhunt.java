@@ -69,12 +69,10 @@ public class Sculkhunt implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        SculkhuntItems.init();
         SculkhuntBlocks.init();
         SculkhuntBlockEntityTypes.init();
         SculkhuntEntityTypes.init();
         SculkhuntGamerules.init();
-        SculkhuntDrops.init();
 
         SCULK_BLACKLIST = new ArrayList<>();
         SOUND = Registry.register(Registry.PARTICLE_TYPE, Sculkhunt.MODID + ":sound", FabricParticleTypes.simple(true));
