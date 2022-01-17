@@ -55,10 +55,8 @@ public class SculkCatalystEntity extends Entity {
     }
 
     public boolean canPlaceSculkAt(BlockPos blockPos) {
-        return (world.getBlockState(blockPos.add(0, 1, 0)).getBlock() == SculkhuntBlocks.SCULK_VEIN || world.getBlockState(blockPos.add(0, 1, 0)).isAir() || world.getBlockState(blockPos.add(0, 1, 0)).getMaterial() == Material.BAMBOO || world.getBlockState(blockPos.add(0, 1, 0)).getMaterial() == Material.BAMBOO_SAPLING || world.getBlockState(blockPos.add(0, 1, 0)).getMaterial() == Material.COBWEB || world.getBlockState(blockPos.add(0, 1, 0)).getMaterial() == Material.FIRE || world.getBlockState(blockPos.add(0, 1, 0)).getMaterial() == Material.CARPET || world.getBlockState(blockPos.add(0, 1, 0)).getMaterial() == Material.CACTUS || world.getBlockState(blockPos.add(0, 1, 0)).getMaterial() == Material.PLANT || world.getBlockState(blockPos.add(0, 1, 0)).getMaterial() == Material.REPLACEABLE_PLANT || world.getBlockState(blockPos).getMaterial() == Material.SNOW_LAYER || world.getBlockState(blockPos.add(0, 1, 0)).getBlock() == Blocks.WATER)
-                && world.getBlockState(blockPos).isSolidBlock(world, blockPos)
+        return world.getBlockState(blockPos).isSolidBlock(world, blockPos)
                 && blockPos != this.getBlockPos()
-                && this.random.nextInt(5) == 0
                 && world.getBlockState(blockPos).getMaterial() != Material.SCULK;
     }
 
@@ -106,15 +104,40 @@ public class SculkCatalystEntity extends Entity {
                 this.sculks.add(new Sculk(neighborPos, world.getBlockState(neighborPos)));
                 world.setBlockState(neighborPos, SculkhuntBlocks.SCULK.getDefaultState());
 
-                // Remove veins
-                for (Direction veinOffset : Direction.values())
+                // Remove veins attached to sculk block
+                for (Direction offset : Direction.values())
                 {
-                    BlockPos veinPos = neighborPos.add(veinOffset.getVector());
+                    BlockPos veinPos = neighborPos.offset(offset);
                     BlockState state = world.getBlockState(veinPos);
                     if (state.getBlock().equals(SculkhuntBlocks.SCULK_VEIN))
                     {
-                        this.sculks.remove(new Sculk(veinPos, null));
-                        world.setBlockState(veinPos, Blocks.AIR.getDefaultState());
+                        // Remove connection to this sculk block
+                        state = state.with(ConnectingBlock.FACING_PROPERTIES.get(offset.getOpposite()), false);
+                        if (!(state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.UP)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.DOWN)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.NORTH)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.SOUTH)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.EAST)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.WEST))))
+                        {
+                            this.sculks.remove(new Sculk(veinPos, null));
+                            world.setBlockState(veinPos, Blocks.AIR.getDefaultState());
+                        }
+                        else world.setBlockState(veinPos, state);
+                    }
+                }
+            }
+        }
+
+        // Place veins wherever possible within a 3x3 lattice centered around where the vein used to be
+        for (int x = -1; x <= 1; x++)
+        {
+            for (int y = -1; y <= 1; y++)
+            {
+                for (int z = -1; z <= 1; z++)
+                {
+                    BlockPos placePos = blockPos.add(x, y, z);
+
+                    if ((x != 0 ^ y != 0 ^ z != 0) && canPlaceVeinAt(placePos))
+                    {
+                        Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
+                        this.sculks.add(newVein);
+                        world.setBlockState(placePos, getBlockStateForVein(placePos));
                     }
                 }
             }
@@ -190,31 +213,16 @@ public class SculkCatalystEntity extends Entity {
                         {
                             // Add sculk around where the vein used to be, clearing any veins attached to those blocks
                             spreadVein(blockPos, sculkState);
+                            hasSpread = true;
 
                             // 1% chance of placing a sculk sensor where the vein used to be
-                            if (random.nextInt(100) == 0)
+                            if (random.nextInt(50) == 0)
                             {
-                                this.sculks.add(new Sculk(blockPos, world.getBlockState(blockPos)));
-                                world.setBlockState(blockPos, Blocks.SCULK_SENSOR.getDefaultState());
-                            }
-
-                            // Place veins wherever possible within a 3x3 lattice centered around where the vein used to be
-                            for (int x = -1; x <= 1; x++)
-                            {
-                                for (int y = -1; y <= 1; y++)
+                                BlockPos checkPos = blockPos.offset(Direction.DOWN);
+                                if (world.getBlockState(checkPos).isSideSolidFullSquare(world, checkPos, Direction.UP))
                                 {
-                                    for (int z = -1; z <= 1; z++)
-                                    {
-                                        BlockPos placePos = blockPos.add(x, y, z);
-
-                                        if ((x != 0 ^ y != 0 ^ z != 0) && canPlaceVeinAt(placePos))
-                                        {
-                                            Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
-                                            this.sculks.add(newVein);
-                                            hasSpread = true;
-                                            world.setBlockState(placePos, getBlockStateForVein(placePos));
-                                        }
-                                    }
+                                    this.sculks.add(new Sculk(blockPos, world.getBlockState(blockPos)));
+                                    world.setBlockState(blockPos, Blocks.SCULK_SENSOR.getDefaultState());
                                 }
                             }
                         }
@@ -222,6 +230,35 @@ public class SculkCatalystEntity extends Entity {
                         // If this sculk is a sculk block
                         if (world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK)
                         {
+                            // Spread downwards
+                            Direction bloomDirection = Direction.random(this.random);
+                            BlockPos depthPos = blockPos.offset(bloomDirection);
+                            if (canPlaceSculkAt(depthPos))
+                            {
+                                this.sculks.add(new Sculk(depthPos, world.getBlockState(depthPos)));
+                                world.setBlockState(depthPos, SculkhuntBlocks.SCULK.getDefaultState());
+                            }
+
+                            // Create veins
+                            BlockPos veinCenter = blockPos.offset(bloomDirection.getOpposite());
+                            for (int x = -1; x <= 1; x++)
+                            {
+                                for (int y = -1; y <= 1; y++)
+                                {
+                                    for (int z = -1; z <= 1; z++)
+                                    {
+                                        BlockPos placePos = veinCenter.add(x, y, z);
+
+                                        if ((x != 0 ^ y != 0 ^ z != 0) && canPlaceVeinAt(placePos))
+                                        {
+                                            Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
+                                            this.sculks.add(newVein);
+                                            world.setBlockState(placePos, getBlockStateForVein(placePos));
+                                        }
+                                    }
+                                }
+                            }
+
                             // Chance of spawning a sculk mob
                             if (this.random.nextInt(world.getGameRules().get(SculkhuntGamerules.SCULK_CATALYST_MOB_SPAWN_FREQUENCY).get()) == 0)
                             {

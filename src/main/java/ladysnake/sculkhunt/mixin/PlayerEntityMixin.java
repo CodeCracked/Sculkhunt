@@ -3,6 +3,7 @@ package ladysnake.sculkhunt.mixin;
 import ladysnake.sculkhunt.cca.SculkhuntComponents;
 import ladysnake.sculkhunt.common.Sculkhunt;
 import ladysnake.sculkhunt.common.init.SculkhuntBlocks;
+import ladysnake.sculkhunt.util.SculkBurrowing;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
@@ -19,6 +20,7 @@ import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.Hand;
 import net.minecraft.world.World;
+import org.lwjgl.system.CallbackI;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -30,22 +32,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(PlayerEntity.class)
 public abstract class PlayerEntityMixin extends LivingEntity {
     private final TargetPredicate PLAYERS_IN_RANGE_PREDICATE = TargetPredicate.createAttackable().setBaseMaxDistance(20.0D);
+
+    //region Shadows
     @Shadow
     protected boolean isSubmergedInWater;
     @Shadow
     @Final
     private PlayerInventory inventory;
-
-    protected PlayerEntityMixin(EntityType<? extends LivingEntity> entityType, World world) {
-        super(entityType, world);
-    }
-
-    @Inject(method = "isInvulnerableTo", at = @At("RETURN"), cancellable = true)
-    public void isInvulnerableTo(DamageSource damageSource, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
-        if (SculkhuntComponents.SCULK.get(this).isSculk() && damageSource.equals(DamageSource.IN_WALL)) {
-            callbackInfoReturnable.setReturnValue(true);
-        }
-    }
 
     @Shadow
     public abstract void playSound(SoundEvent sound, float volume, float pitch);
@@ -58,6 +51,42 @@ public abstract class PlayerEntityMixin extends LivingEntity {
 
     @Shadow
     public abstract boolean isCreative();
+    //endregion
+
+    protected PlayerEntityMixin(EntityType<? extends LivingEntity> entityType, World world) {
+        super(entityType, world);
+    }
+
+    @Inject(method = "isInvulnerableTo", at = @At("RETURN"), cancellable = true)
+    public void isInvulnerableTo(DamageSource damageSource, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
+        if (SculkhuntComponents.SCULK.get(this).isSculk() && damageSource.equals(DamageSource.IN_WALL)) {
+            callbackInfoReturnable.setReturnValue(true);
+        }
+    }
+
+    @Inject(method = "tickMovement", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/player/PlayerEntity;setMovementSpeed(F)V", shift = At.Shift.AFTER))
+    public void tickMovement(CallbackInfo callbackInfo)
+    {
+        if (SculkhuntComponents.SCULK.get(this).isSculk())
+        {
+            SculkBurrowing.updateMovementSpeed((PlayerEntity) ((Object) this));
+        }
+    }
+
+    @Inject(method = "jump", at = @At("HEAD"), cancellable = true)
+    public void jump(CallbackInfo callbackInfo)
+    {
+        if (SculkhuntComponents.BURROWING.get(this).isBurrowing()) callbackInfo.cancel();
+    }
+
+    @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/player/PlayerEntity;isSpectator()Z", shift = At.Shift.AFTER))
+    public void noClipModify(CallbackInfo callbackInfo)
+    {
+        if (SculkhuntComponents.SCULK.get(this).isSculk())
+        {
+            SculkBurrowing.updateNoClip((PlayerEntity) ((Object) this));
+        }
+    }
 
     @Inject(method = "tick", at = @At("TAIL"))
     public void tick(CallbackInfo callbackInfo) {
@@ -112,6 +141,12 @@ public abstract class PlayerEntityMixin extends LivingEntity {
             if (this.isSwimming()) {
                 this.addStatusEffect(new StatusEffectInstance(StatusEffects.DOLPHINS_GRACE, 60, 0, false, false, false));
             }
+        }
+
+        // Tick burrowing
+        if (SculkhuntComponents.SCULK.get(this).isSculk())
+        {
+            SculkBurrowing.tickBurrowing((PlayerEntity) ((Object) this), random);
         }
     }
 

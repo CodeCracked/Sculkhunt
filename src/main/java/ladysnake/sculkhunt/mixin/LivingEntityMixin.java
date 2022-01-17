@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import ladysnake.sculkhunt.cca.SculkhuntComponents;
 import ladysnake.sculkhunt.common.init.SculkhuntBlocks;
 import ladysnake.sculkhunt.common.init.SculkhuntDamageSources;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.*;
 import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.damage.DamageSource;
@@ -79,22 +80,26 @@ public abstract class LivingEntityMixin extends Entity {
             SculkhuntComponents.SCULK.get(this).decrementDetectedTime();
         }
 
-        if (SculkhuntComponents.SCULK.get(this).isSculk()) {
-            // rise from sculk
-            if (!((Object) this instanceof PlayerEntity && ((PlayerEntity) (Object) this).isSpectator())) {
-                if (world.getBlockState(this.getBlockPos()).isSolidBlock(world, this.getBlockPos())) {
-                    noClip = ((Object) this instanceof PlayerEntity) && world.getBlockState(this.getBlockPos()).isSolidBlock(world, this.getBlockPos());
+        if (SculkhuntComponents.SCULK.get(this).isSculk())
+        {
+            // If entity is not a player, rise from sculk
+            if (!((Object) this instanceof PlayerEntity))
+            {
+                // If block at entity position is a solid block
+                if (world.getBlockState(this.getBlockPos()).isSolidBlock(world, this.getBlockPos()))
+                {
+                    // Rising Velocity
                     setVelocity(0, world.getBlockState(getBlockPos().up()).isSolidBlock(world, getBlockPos().up()) ? 1 : 0.05, 0);
                     velocityModified = true;
                     velocityDirty = true;
+
+                    // Rising Particles
                     for (int i = 0; i < (this.getWidth() * this.getHeight()) * 25; i++) {
                         world.addParticle(new ItemStackParticleEffect(ParticleTypes.ITEM, new ItemStack(SculkhuntBlocks.SCULK)), this.getX() + random.nextGaussian() * this.getWidth() / 5f, this.getY() + random.nextGaussian() * this.getHeight() / 5f, this.getZ() + random.nextGaussian() * this.getWidth() / 5f, random.nextGaussian() / 10f, random.nextFloat() / 5f, random.nextGaussian() / 10f);
                     }
                     this.playSound(SoundEvents.BLOCK_SCULK_SENSOR_STEP, 1.0f, 0.9f);
 
-                    if (!((Object) this instanceof PlayerEntity) && this.age > 50) {
-                        this.discard();
-                    }
+                    if (this.age > 50) this.discard();
                 }
             }
         }

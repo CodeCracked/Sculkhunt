@@ -13,10 +13,8 @@
     "defaultRequire": 1
   },
   "mixins": [
-    "EndPortalBlockMixin",
     "EntityMixin",
     "GameEventMixin",
-    "HostileEntityMixin",
     "HungerManagerMixin",
     "ItemEntityMixin",
     "LivingEntityMixin",

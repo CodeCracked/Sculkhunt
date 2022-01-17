@@ -31,7 +31,8 @@
   "accessWidener": "sculkhunt.accesswidener",
   "custom": {
     "cardinal-components": [
-      "sculkhunt:sculk"
+      "sculkhunt:sculk",
+      "sculkhunt:burrowing"
     ]
   },
   "depends": {
