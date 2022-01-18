@@ -1,6 +1,5 @@
 package ladysnake.sculkhunt.client.particle;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import ladysnake.sculkhunt.cca.SculkhuntComponents;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -14,7 +13,6 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Quaternion;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3f;
-import org.lwjgl.opengl.GL11;
 
 public class SoundParticle extends SpriteBillboardParticle {
     private final SpriteProvider spriteProvider;
@@ -32,13 +30,8 @@ public class SoundParticle extends SpriteBillboardParticle {
         this.blue = 1f;
     }
 
-    @Override
     public void buildGeometry(VertexConsumer vertexConsumer, Camera camera, float tickDelta) {
         if (camera.getFocusedEntity() instanceof PlayerEntity && SculkhuntComponents.SCULK.get(camera.getFocusedEntity()).isSculk()) {
-
-            RenderSystem.disableDepthTest();
-            RenderSystem.depthFunc(GL11.GL_ALWAYS);
-
             Vec3d vec3d = camera.getPos();
             float f = (float) (MathHelper.lerp(tickDelta, this.prevPosX, this.x) - vec3d.getX());
             float g = (float) (MathHelper.lerp(tickDelta, this.prevPosY, this.y) - vec3d.getY());
@@ -80,8 +73,9 @@ public class SoundParticle extends SpriteBillboardParticle {
         }
     }
 
-    public ParticleTextureSheet getType() {
-        return ParticleTextureSheet.PARTICLE_SHEET_TRANSLUCENT;
+    public ParticleTextureSheet getType()
+    {
+        return SculkhuntParticleTextureSheet.SOUND_PARTICLE_SHEET;
     }
 
     public void tick() {
