@@ -47,6 +47,7 @@ import static ladysnake.sculkhunt.common.Sculkhunt.SPAWN_RADIUS;
 public class SculkCatalystEntity extends Entity {
     private static final TrackedData<Integer> BLOOMING_PHASE = DataTracker.registerData(SculkCatalystEntity.class, TrackedDataHandlerRegistry.INTEGER);
     private final List<Sculk> sculks = Lists.newArrayList();
+    private final List<Sculk> veins = Lists.newArrayList();
     private int bloomCounter = 0;
     private int incapacitatedTimer = 0;
 
@@ -115,7 +116,9 @@ public class SculkCatalystEntity extends Entity {
                         state = state.with(ConnectingBlock.FACING_PROPERTIES.get(offset.getOpposite()), false);
                         if (!(state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.UP)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.DOWN)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.NORTH)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.SOUTH)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.EAST)) || state.get(ConnectingBlock.FACING_PROPERTIES.get(Direction.WEST))))
                         {
-                            this.sculks.remove(new Sculk(veinPos, null));
+                            Sculk remove = new Sculk(veinPos, null);
+                            this.sculks.remove(remove);
+                            this.veins.remove(remove);
                             world.setBlockState(veinPos, Blocks.AIR.getDefaultState());
                         }
                         else world.setBlockState(veinPos, state);
@@ -137,6 +140,7 @@ public class SculkCatalystEntity extends Entity {
                     {
                         Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
                         this.sculks.add(newVein);
+                        this.veins.add(newVein);
                         world.setBlockState(placePos, getBlockStateForVein(placePos));
                     }
                 }
@@ -193,6 +197,7 @@ public class SculkCatalystEntity extends Entity {
                                     {
                                         Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
                                         this.sculks.add(newVein);
+                                        this.veins.add(newVein);
                                         world.setBlockState(placePos, getBlockStateForVein(placePos));
                                     }
                                 }
@@ -203,7 +208,34 @@ public class SculkCatalystEntity extends Entity {
                     // If there is sculk
                     else
                     {
-                        // Get random sculk belonging to this catalyst
+                        // Try to spread a vein, if possible
+                        if (!this.veins.isEmpty())
+                        {
+                            Sculk vein = this.veins.get(random.nextInt(this.veins.size()));
+                            BlockPos blockPos = NbtHelper.toBlockPos(vein.blockPos);
+                            BlockState veinState = world.getBlockState(blockPos);
+
+                            // If this is still a sculk vein
+                            if (veinState.getBlock() == SculkhuntBlocks.SCULK_VEIN)
+                            {
+                                // Add sculk around where the vein used to be, clearing any veins attached to those blocks
+                                spreadVein(blockPos, veinState);
+                                hasSpread = true;
+
+                                // 2% chance of placing a sculk sensor where the vein used to be
+                                if (random.nextInt(50) == 0)
+                                {
+                                    BlockPos checkPos = blockPos.offset(Direction.DOWN);
+                                    if (world.getBlockState(checkPos).isSideSolidFullSquare(world, checkPos, Direction.UP))
+                                    {
+                                        this.sculks.add(new Sculk(blockPos, world.getBlockState(blockPos)));
+                                        world.setBlockState(blockPos, Blocks.SCULK_SENSOR.getDefaultState());
+                                    }
+                                }
+                            }
+                        }
+
+                        // Try to spread a random sculk
                         Sculk sculk = this.sculks.get(random.nextInt(this.sculks.size()));
                         BlockPos blockPos = NbtHelper.toBlockPos(sculk.blockPos);
                         BlockState sculkState = world.getBlockState(blockPos);
@@ -228,7 +260,7 @@ public class SculkCatalystEntity extends Entity {
                         }
 
                         // If this sculk is a sculk block
-                        if (world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK)
+                        else if (world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK)
                         {
                             // Spread downwards
                             Direction bloomDirection = Direction.random(this.random);
@@ -253,6 +285,7 @@ public class SculkCatalystEntity extends Entity {
                                         {
                                             Sculk newVein = new Sculk(placePos, world.getBlockState(placePos));
                                             this.sculks.add(newVein);
+                                            this.veins.add(newVein);
                                             world.setBlockState(placePos, getBlockStateForVein(placePos));
                                         }
                                     }
@@ -394,6 +427,14 @@ public class SculkCatalystEntity extends Entity {
             Sculk sculk = new Sculk(NbtHelper.toBlockPos(nbtCompound.getCompound("BlockPos")), NbtHelper.toBlockState(nbtCompound.getCompound("BlockState")));
             this.sculks.add(sculk);
         }
+
+        this.veins.clear();
+        nbtList = nbt.getList("Veins", 10);
+        for (int i = 0; i < nbtList.size(); ++i) {
+            NbtCompound nbtCompound = nbtList.getCompound(i);
+            Sculk sculk = new Sculk(NbtHelper.toBlockPos(nbtCompound.getCompound("BlockPos")), NbtHelper.toBlockState(nbtCompound.getCompound("BlockState")));
+            this.veins.add(sculk);
+        }
     }
 
     public NbtCompound writeNbt(NbtCompound nbt) {
@@ -401,6 +442,7 @@ public class SculkCatalystEntity extends Entity {
 
         nbt.putInt("BloomCounter", this.bloomCounter);
         nbt.put("Sculks", this.getSculks());
+        nbt.put("Veins", this.getVeins());
 
         return nbt;
     }
@@ -493,7 +535,9 @@ public class SculkCatalystEntity extends Entity {
                         // Remove the vein
                         world.breakBlock(blockPos, false);
                         world.setBlockState(blockPos, blockState);
+                        Sculk remove = this.sculks.get(this.sculks.size() - 1);
                         this.sculks.remove(this.sculks.size() - 1);
+                        this.veins.remove(remove);
                     }
                     else if (world.getBlockState(blockPos).getBlock() == Blocks.SCULK_SENSOR)
                     {
@@ -510,6 +554,7 @@ public class SculkCatalystEntity extends Entity {
             }
 
             sculks.addAll(newVeins);
+            veins.addAll(newVeins);
 
             return true;
         } else {
@@ -544,6 +589,17 @@ public class SculkCatalystEntity extends Entity {
             NbtCompound nbtCompound = new NbtCompound();
             nbtCompound.put("BlockPos", sculk.blockPos);
             nbtCompound.put("BlockState", sculk.blockstate);
+            nbtList.add(nbtCompound);
+        }
+
+        return nbtList;
+    }
+    public NbtList getVeins() {
+        NbtList nbtList = new NbtList();
+        for (Sculk vein : veins) {
+            NbtCompound nbtCompound = new NbtCompound();
+            nbtCompound.put("BlockPos", vein.blockPos);
+            nbtCompound.put("BlockState", vein.blockstate);
             nbtList.add(nbtCompound);
         }
 

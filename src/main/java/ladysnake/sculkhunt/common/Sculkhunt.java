@@ -16,6 +16,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.particle.v1.FabricParticleTypes;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.Material;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.Packet;
@@ -269,8 +270,9 @@ public class Sculkhunt implements ModInitializer {
 
         if (!catalysts.isEmpty()) {
             Vec3d newPos = catalysts.get(world.random.nextInt(catalysts.size())).getPos().add(world.random.nextGaussian() * 2, -newPlayer.getHeight() * 2, world.random.nextGaussian() * 2);
-
             newPlayer.networkHandler.requestTeleport(newPos.getX(), newPos.getY(), newPos.getZ(), newPlayer.getYaw(), newPlayer.getPitch());
+
+            SculkhuntComponents.BURROWING.get(newPlayer).startRise();
         }
     }
 

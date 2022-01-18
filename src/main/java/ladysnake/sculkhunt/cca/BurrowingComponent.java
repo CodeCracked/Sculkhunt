@@ -28,13 +28,13 @@ public class BurrowingComponent implements AutoSyncedComponent
     public boolean isRising() { return rising; }
     public int getSinkTicks() { return sinkTicks; }
 
-    private void startBurrowing()
+    public void startBurrowing()
     {
         sinkTicks = 20;
         rising = false;
         SculkhuntComponents.BURROWING.sync(player);
     }
-    private void startRise()
+    public void startRise()
     {
         sinkTicks = 0;
         rising = true;
