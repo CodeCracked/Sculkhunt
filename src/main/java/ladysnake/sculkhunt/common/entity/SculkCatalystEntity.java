@@ -6,6 +6,7 @@ import ladysnake.sculkhunt.common.Sculkhunt;
 import ladysnake.sculkhunt.common.block.SculkVeinBlock;
 import ladysnake.sculkhunt.common.init.SculkhuntBlocks;
 import ladysnake.sculkhunt.common.init.SculkhuntGamerules;
+import ladysnake.sculkhunt.util.BlockPalette;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.ConnectingBlock;
@@ -19,9 +20,7 @@ import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.fluid.Fluids;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtHelper;
-import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.*;
 import net.minecraft.network.Packet;
 import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket;
 import net.minecraft.particle.ItemStackParticleEffect;
@@ -48,6 +47,7 @@ public class SculkCatalystEntity extends Entity {
     private static final TrackedData<Integer> BLOOMING_PHASE = DataTracker.registerData(SculkCatalystEntity.class, TrackedDataHandlerRegistry.INTEGER);
     private final List<Sculk> sculks = Lists.newArrayList();
     private final List<Sculk> veins = Lists.newArrayList();
+    private BlockPalette palette = new BlockPalette();
     private int bloomCounter = 0;
     private int incapacitatedTimer = 0;
 
@@ -212,7 +212,7 @@ public class SculkCatalystEntity extends Entity {
                         if (!this.veins.isEmpty())
                         {
                             Sculk vein = this.veins.get(random.nextInt(this.veins.size()));
-                            BlockPos blockPos = NbtHelper.toBlockPos(vein.blockPos);
+                            BlockPos blockPos = vein.blockPos;
                             BlockState veinState = world.getBlockState(blockPos);
 
                             // If this is still a sculk vein
@@ -237,7 +237,7 @@ public class SculkCatalystEntity extends Entity {
 
                         // Try to spread a random sculk
                         Sculk sculk = this.sculks.get(random.nextInt(this.sculks.size()));
-                        BlockPos blockPos = NbtHelper.toBlockPos(sculk.blockPos);
+                        BlockPos blockPos = sculk.blockPos;
                         BlockState sculkState = world.getBlockState(blockPos);
 
                         // If this sculk is a sculk vein
@@ -419,21 +419,22 @@ public class SculkCatalystEntity extends Entity {
         super.readNbt(nbt);
 
         this.bloomCounter = nbt.getInt("BloomCounter");
+        this.palette = BlockPalette.deserialize(nbt.getList("Palette", NbtElement.COMPOUND_TYPE));
 
         this.sculks.clear();
-        NbtList nbtList = nbt.getList("Sculks", 10);
-        for (int i = 0; i < nbtList.size(); ++i) {
-            NbtCompound nbtCompound = nbtList.getCompound(i);
-            Sculk sculk = new Sculk(NbtHelper.toBlockPos(nbtCompound.getCompound("BlockPos")), NbtHelper.toBlockState(nbtCompound.getCompound("BlockState")));
+        int[] sculks = nbt.getIntArray("Sculks");
+        for (int i = 0; i < sculks.length; i += 4)
+        {
+            Sculk sculk = new Sculk(new BlockPos(sculks[i], sculks[i + 1], sculks[i + 2]), palette.resolve(sculks[i + 3]));
             this.sculks.add(sculk);
         }
 
         this.veins.clear();
-        nbtList = nbt.getList("Veins", 10);
-        for (int i = 0; i < nbtList.size(); ++i) {
-            NbtCompound nbtCompound = nbtList.getCompound(i);
-            Sculk sculk = new Sculk(NbtHelper.toBlockPos(nbtCompound.getCompound("BlockPos")), NbtHelper.toBlockState(nbtCompound.getCompound("BlockState")));
-            this.veins.add(sculk);
+        int[] veins = nbt.getIntArray("Sculks");
+        for (int i = 0; i < veins.length; i += 4)
+        {
+            Sculk sculk = new Sculk(new BlockPos(veins[i], veins[i + 1], veins[i + 2]), palette.resolve(veins[i + 3]));
+            this.sculks.add(sculk);
         }
     }
 
@@ -441,6 +442,7 @@ public class SculkCatalystEntity extends Entity {
         super.writeNbt(nbt);
 
         nbt.putInt("BloomCounter", this.bloomCounter);
+        nbt.put("Palette", this.palette.serialize());
         nbt.put("Sculks", this.getSculks());
         nbt.put("Veins", this.getVeins());
 
@@ -503,8 +505,8 @@ public class SculkCatalystEntity extends Entity {
                 {
                     // Get the most recent sculk added by this catalyst that still exists
                     Sculk sculk = this.sculks.get(this.sculks.size() - 1);
-                    BlockState blockState = NbtHelper.toBlockState(this.sculks.get(this.sculks.size() - 1).blockstate);
-                    BlockPos blockPos = NbtHelper.toBlockPos(this.sculks.get(this.sculks.size() - 1).blockPos);
+                    BlockState blockState = palette.resolve(this.sculks.get(this.sculks.size() - 1).blockState);
+                    BlockPos blockPos = this.sculks.get(this.sculks.size() - 1).blockPos;
 
                     // If the sculk is a sculk block
                     if (world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK)
@@ -567,8 +569,8 @@ public class SculkCatalystEntity extends Entity {
         {
             for (Sculk sculk : sculks)
             {
-                BlockState blockState = NbtHelper.toBlockState(sculk.blockstate);
-                BlockPos blockPos = NbtHelper.toBlockPos(sculk.blockPos);
+                BlockState blockState = palette.resolve(sculk.blockState);
+                BlockPos blockPos = sculk.blockPos;
                 if (world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK || world.getBlockState(blockPos).getBlock() == SculkhuntBlocks.SCULK_VEIN || world.getBlockState(blockPos).getBlock() == Blocks.SCULK_SENSOR) {
                     world.breakBlock(blockPos, false);
                     world.setBlockState(blockPos, blockState);
@@ -583,36 +585,36 @@ public class SculkCatalystEntity extends Entity {
     }
 
 
-    public NbtList getSculks() {
-        NbtList nbtList = new NbtList();
-        for (Sculk sculk : sculks) {
-            NbtCompound nbtCompound = new NbtCompound();
-            nbtCompound.put("BlockPos", sculk.blockPos);
-            nbtCompound.put("BlockState", sculk.blockstate);
-            nbtList.add(nbtCompound);
+    public NbtIntArray getSculks() {
+        List<Integer> ints = new ArrayList<>(this.sculks.size() * 4);
+        for (Sculk sculk : sculks)
+        {
+            ints.add(sculk.blockPos.getX());
+            ints.add(sculk.blockPos.getY());
+            ints.add(sculk.blockPos.getZ());
+            ints.add(sculk.blockState);
         }
-
-        return nbtList;
+        return new NbtIntArray(ints);
     }
-    public NbtList getVeins() {
-        NbtList nbtList = new NbtList();
-        for (Sculk vein : veins) {
-            NbtCompound nbtCompound = new NbtCompound();
-            nbtCompound.put("BlockPos", vein.blockPos);
-            nbtCompound.put("BlockState", vein.blockstate);
-            nbtList.add(nbtCompound);
+    public NbtIntArray getVeins() {
+        List<Integer> ints = new ArrayList<>(this.veins.size() * 4);
+        for (Sculk sculk : veins)
+        {
+            ints.add(sculk.blockPos.getX());
+            ints.add(sculk.blockPos.getY());
+            ints.add(sculk.blockPos.getZ());
+            ints.add(sculk.blockState);
         }
-
-        return nbtList;
+        return new NbtIntArray(ints);
     }
 
-    private static class Sculk {
-        NbtCompound blockPos;
-        NbtCompound blockstate;
+    private class Sculk {
+        BlockPos blockPos;
+        int blockState;
 
         Sculk(BlockPos blockPos, BlockState blockState) {
-            this.blockPos = NbtHelper.fromBlockPos(blockPos);
-            if (blockState != null) this.blockstate = NbtHelper.fromBlockState(blockState);
+            this.blockPos = blockPos;
+            this.blockState = blockState == null ? -1 : palette.getBlockIndex(blockState);
         }
 
         @Override
